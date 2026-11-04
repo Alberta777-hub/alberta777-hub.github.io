@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OV(T) — Option Value of Spent Fuel · PHYSICS v2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root{
+    --bg: #0b1220;
+    --panel: #10192c;
+    --panel-2: #142238;
+    --line: #223151;
+    --ink: #e8ecf5;
+    --ink-dim: #94a3c4;
+    --ink-faint: #5c6c92;
+    --gold: #d4af5a;
+    --gold-dim: #8a713a;
+    --green: #4fae8a;
+    --red: #d1665a;
+    --radius: 10px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background: var(--bg); color: var(--ink);
+    font-family:'Inter',sans-serif; padding: 40px 24px 80px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap{ max-width: 1180px; margin:0 auto; }
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace; font-size:11px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--gold); margin:0 0 10px; text-align:center;
+  }
+  h1{
+    font-family:'Fraunces',serif; font-weight:500; font-size:clamp(26px,4vw,38px);
+    line-height:1.1; margin:0 0 8px; text-align:center; letter-spacing:-0.01em;
+  }
+  .sub{
+    color:var(--ink-dim); font-size:14px; text-align:center; max-width:600px;
+    margin:0 auto 36px; line-height:1.6;
+  }
+  .layers{ display:flex; justify-content:center; gap:6px; margin-bottom:32px; flex-wrap:wrap; }
+  .layer-chip{
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.04em;
+    padding:5px 12px; border-radius:20px; border:1px solid var(--line); color:var(--ink-faint);
+  }
+  .layer-chip.arrow{ border:none; color:var(--gold-dim); padding:5px 2px; }
+
+  .grid{ display:grid; grid-template-columns: 320px 1fr; gap:20px; }
+  @media(max-width:900px){ .grid{ grid-template-columns:1fr; } }
+
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:20px; }
+  .panel + .panel{ margin-top:18px; }
+  .panel h2{
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--gold); margin:0 0 16px;
+    border-bottom:1px solid var(--line); padding-bottom:10px;
+  }
+  .field{ margin-bottom:14px; } .field:last-child{ margin-bottom:0; }
+  .field label{ display:flex; justify-content:space-between; font-size:12px; color:var(--ink-dim); margin-bottom:5px; }
+  .field label .val{ font-family:'JetBrains Mono',monospace; color:var(--gold); font-weight:600; }
+  input[type=range]{ -webkit-appearance:none; width:100%; height:3px; border-radius:2px; background:var(--line); }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:13px; height:13px; border-radius:50%;
+    background:var(--gold); cursor:pointer; border:2px solid var(--bg); box-shadow:0 0 0 1px var(--gold-dim);
+  }
+  .pvals{ display:flex; justify-content:space-between; gap:10px; margin-top:12px; font-family:'JetBrains Mono',monospace; font-size:12px; color:var(--ink-dim); }
+  .pvals b{ color:var(--gold); font-weight:600; }
+  .rg-row{ padding:12px 0; border-top:1px solid #25304a; font-size:12px; line-height:1.5; color:var(--ink-dim); }
+  .rg-row b{ color:var(--ink,#dfe6f5); font-weight:600; }
+  .rg-badge{ display:inline-block; padding:1px 7px; margin:0 6px 4px 0; border-radius:9px; font-size:10.5px; font-family:'JetBrains Mono',monospace; border:1px solid #3a4666; }
+  .hint{ font-size:10.5px; color:var(--ink-faint); margin-top:3px; line-height:1.4; }
+
+  .presets{ display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; }
+  .preset-btn{
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; padding:6px 10px; border-radius:6px;
+    border:1px solid var(--line); background:var(--panel-2); color:var(--ink-dim); cursor:pointer;
+  }
+  .preset-btn.active{ background:var(--gold); color:#1a1305; border-color:var(--gold); }
+
+  .decision-box{
+    border-radius:var(--radius); padding:22px; margin-bottom:18px;
+    border:1px solid var(--line); background:var(--panel-2);
+  }
+  .decision-row{ display:flex; justify-content:space-between; align-items:baseline; padding:6px 0; }
+  .decision-row .k{ font-size:12.5px; color:var(--ink-dim); }
+  .decision-row .v{ font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--ink); font-weight:600; }
+  .verdict{
+    margin-top:12px; padding:14px 16px; border-radius:8px; text-align:center;
+    font-family:'Fraunces',serif; font-size:19px; font-weight:600;
+  }
+  .verdict.dispose{ background:rgba(209,102,90,.12); color:var(--red); border:1px solid rgba(209,102,90,.35); }
+  .verdict.preserve{ background:rgba(79,174,138,.12); color:var(--green); border:1px solid rgba(79,174,138,.35); }
+  .verdict.actnow{ background:rgba(212,175,90,.14); color:var(--gold); border:1px solid rgba(212,175,90,.4); }
+
+  .chart-box{ position:relative; height:340px; margin-bottom:6px; }
+  .legend{ display:flex; gap:16px; flex-wrap:wrap; font-size:11.5px; color:var(--ink-dim); margin-bottom:10px; }
+  .legend span{ display:flex; align-items:center; gap:5px; }
+  .swatch{ width:10px; height:2px; display:inline-block; }
+
+  details{ margin-top:6px; }
+  summary{
+    font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--gold);
+    cursor:pointer; letter-spacing:.04em; padding:4px 0;
+  }
+
+  .diagnostic-grid{ display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-top:14px; }
+  .heat-card{ border:1px solid var(--line); background:var(--panel-2); border-radius:8px; padding:12px; }
+  .heat-card h3{ font-family:'JetBrains Mono',monospace; font-size:11px; margin:0 0 7px; color:var(--ink); letter-spacing:.03em; }
+  .heat-card p{ font-size:10.5px; color:var(--ink-faint); line-height:1.45; margin:0 0 8px; }
+  .heat-wrap{ position:relative; width:100%; aspect-ratio:1/1; min-height:210px; }
+  .heat-wrap canvas{ width:100%; height:100%; display:block; cursor:crosshair; }
+  .heat-legend{ margin-top:8px; }
+  .heat-legend .bar{ height:10px; border-radius:3px; }
+  .heat-legend .ticks{ display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace; font-size:9.5px; color:var(--ink-faint); margin-top:3px; }
+  .heat-legend .chips{ display:flex; gap:10px; flex-wrap:wrap; font-size:10px; color:var(--ink-dim); }
+  .heat-legend .chip{ display:flex; align-items:center; gap:5px; }
+  .heat-legend .chip .sw{ width:10px; height:10px; border-radius:2px; display:inline-block; }
+  .heat-tooltip{
+    position:fixed; z-index:9998; display:none; pointer-events:none;
+    background:#111a2b; border:1px solid #334467; border-radius:6px; padding:6px 9px;
+    font-family:'JetBrains Mono',monospace; font-size:11px; color:#dce5f6; line-height:1.5;
+    box-shadow:0 8px 24px rgba(0,0,0,.4); white-space:nowrap;
+  }
+  .diag-note{ margin-top:12px; padding:11px 13px; border-left:2px solid var(--gold); background:rgba(212,175,90,.05); color:var(--ink-dim); font-size:11px; line-height:1.55; }
+  @media(max-width:900px){ .diagnostic-grid{grid-template-columns:1fr;} .heat-wrap{min-height:260px;} }
+  footer{
+    margin-top:28px; font-size:11px; color:var(--ink-faint); line-height:1.7;
+    border-top:1px solid var(--line); padding-top:16px; text-align:center; max-width:760px; margin-left:auto; margin-right:auto;
+  }
+  footer .warn{ color:var(--gold-dim); font-family:'JetBrains Mono',monospace; font-size:10.5px; display:block; margin-bottom:8px;}
+
+    /* Parameter information popovers */
+    .info-btn{display:inline-flex;align-items:center;justify-content:center;width:17px;height:17px;margin-left:7px;border:1px solid #6f7f9f;border-radius:50%;background:transparent;color:#aebbd4;font:700 11px/1 Arial,sans-serif;cursor:pointer;vertical-align:middle;padding:0;transition:.15s ease}
+    .info-btn:hover,.info-btn:focus{border-color:#d4af5a;color:#d4af5a;outline:none;box-shadow:0 0 0 2px rgba(212,175,90,.12)}
+    .info-popover{position:fixed;z-index:9999;display:none;max-width:min(390px,calc(100vw - 28px));padding:14px 16px;border:1px solid #334467;border-radius:10px;background:#111a2b;color:#dce5f6;box-shadow:0 14px 40px rgba(0,0,0,.42);font-size:13px;line-height:1.5}
+    .info-popover.show{display:block}
+    .info-popover .info-title{font-weight:700;color:#fff;margin-bottom:6px}
+    .info-popover .info-close{float:right;margin:-4px -5px 4px 10px;border:0;background:transparent;color:#8291ae;font-size:18px;cursor:pointer}
+    .info-popover .info-close:hover{color:#fff}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Option Value Calculator</p>
+  <h1>Preserve the Option, or Dispose Now?</h1>
+  <p class="sub">A decision-support model, not a forecast. PHYSICS v2 treats Pu-241 → Am-241 as an isotope-composition change; technology-specific Am effects are kept out of PHYSICS.</p>
+
+  <div class="layers">
+    <span class="layer-chip">PHYSICS</span><span class="layer-chip arrow">→</span>
+    <span class="layer-chip">TECHNOLOGY</span><span class="layer-chip arrow">→</span>
+    <span class="layer-chip">ECONOMICS</span><span class="layer-chip arrow">→</span>
+    <span class="layer-chip">DECISION</span>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="panel">
+        <h2>Economics — Discount Rate</h2>
+        <div class="presets">
+          <button class="preset-btn" data-r="2.5">Gov 2.5%</button>
+          <button class="preset-btn active" data-r="8.5">Private 8.5%</button>
+          <button class="preset-btn" data-r="15">Political 15%</button>
+        </div>
+        <div class="field">
+          <label>r, annual rate <button class="info-btn" type="button" aria-label="What is r?" data-info-title="Annual discount rate (r)" data-info="The rate used to convert future costs and benefits into today’s value. A higher r makes distant future value count less in the decision.">i</button> <span class="val" id="rVal">8.5%</span></label>
+          <input type="range" id="r" min="0.5" max="25" step="0.1" value="8.5">
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Economics — Disposal &amp; Storage</h2>
+        <div class="field">
+          <label>C_disposal, total lifecycle cost <button class="info-btn" type="button" aria-label="What is C disposal?" data-info-title="C_disposal — total lifecycle cost" data-info="The model’s total cost assigned to the disposal pathway over its defined lifecycle. It is not the amount already spent today; that is S₀.">i</button> <span class="val" id="CtotVal">€3.50bn</span></label>
+          <input type="range" id="Ctot" min="1" max="8" step="0.1" value="3.5">
+        </div>
+        <div class="field">
+          <label>S₀, already spent today <button class="info-btn" type="button" aria-label="What is S zero?" data-info-title="S₀ — sunk cost today" data-info="The part of the disposal programme treated as already spent at T = 0. Because it is sunk, delaying the decision does not recover this amount.">i</button> <span class="val" id="S0Val">€0.90bn</span></label>
+          <input type="range" id="S0" min="0" max="3" step="0.05" value="0.9">
+          <div class="hint">C_avoided(T) = [C_disposal − S(T)] × retrieval feasibility(T)</div>
+        </div>
+        <div class="field">
+          <label>Tunnels completed today (of 100) <button class="info-btn" type="button" aria-label="What are completed tunnels?" data-info-title="Repository progress" data-info="Number of deposition tunnels (of 100) counted as completed. Completed is not the same as loaded, backfilled or sealed: the model treats completed tunnels as irreversible, which can bias the result slightly toward DISPOSE. More completed tunnels reduce the disposal cost that can still be avoided by preserving the option.">i</button> <span class="val" id="tunnelsVal">5</span></label>
+          <input type="range" id="tunnels" min="0" max="40" step="1" value="5">
+        </div>
+        <div class="field">
+          <label>C_storage, annual <button class="info-btn" type="button" aria-label="What is storage cost?" data-info-title="C_storage — annual storage cost" data-info="The annual cost of keeping the spent fuel accessible while the disposal decision is delayed. This is an always-on cost in the model, not a success-only cost.">i</button> <span class="val" id="CstorVal">€50M/yr</span></label>
+          <input type="range" id="Cstor" min="5" max="300" step="5" value="50">
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Economics — Reprocessing Cost</h2>
+        <div class="field">
+          <label>C_reprocess, today <button class="info-btn" type="button" aria-label="What is C reprocess?" data-info-title="C_reprocess, today" data-info="The assumed cost of the reprocessing pathway today, in EUR bn, entered directly. It is independent of C_disposal, so changing the disposal cost no longer moves the reprocessing cost. The implied ratio to C_disposal is shown below as a derived read-out. Learning-curve reduction (delta) is applied on top of this value.">i</button> <span class="val" id="CrepVal">€7.00bn</span></label>
+          <input type="range" id="Crep" min="0.5" max="30" step="0.1" value="7.0">
+          <div class="hint">Implied C_reprocess / C_disposal: <span id="multVal">2.00×</span> (derived, not an input)</div>
+          <div class="hint">IPFM benchmark for today's PUREX/MOX: ~2–2.86×</div>
+        </div>
+        <div class="field">
+          <label>δ, annual cost decline (learning curve) <button class="info-btn" type="button" aria-label="What is delta?" data-info-title="δ — learning-curve rate" data-info="The assumed annual percentage decline in future reprocessing cost. It represents technological/industrial learning, not a guaranteed forecast.">i</button> <span class="val" id="deltaVal">0%/yr</span></label>
+          <input type="range" id="delta" min="0" max="25" step="1" value="0">
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Physics</h2>
+        <div class="field">
+          <label>V_fuel(0), baseline gross resource value <button class="info-btn" type="button" aria-label="What is V fuel?" data-info-title="V_fuel(0) — baseline resource value" data-info="The gross potential economic value assigned to the fuel resource at T = 0, before reprocessing, fuel fabrication and other technology-specific costs are subtracted.">i</button> <span class="val" id="VfuelVal">€2.30bn</span></label>
+          <input type="range" id="Vfuel" min="0.5" max="10" step="0.1" value="2.3">
+          <div class="hint">Gross potential value before reprocessing, fabrication and other technology costs.</div>
+        </div>
+        <div class="field">
+          <label>f_Pu241, share of V_fuel(0) linked to Pu-241 <button class="info-btn" type="button" aria-label="What is f Pu241?" data-info-title="f_Pu241 — Pu-241-linked value share" data-info="The fraction of the baseline fuel value that the model links specifically to Pu-241. It is a modelling parameter, not a universal physical constant; the default is 0% when no sourced value is used.">i</button> <span class="val" id="fPuVal">0%</span></label>
+          <input type="range" id="fPu" min="0" max="100" step="1" value="0">
+          <div class="hint">Unknown in the current model. Default 0% avoids inventing a value share; use a sourced value when available.</div>
+        </div>
+        <div class="field">
+          <label>T₁/₂(Pu-241) <button class="info-btn" type="button" aria-label="What is Pu 241 half life?" data-info-title="T₁/₂(Pu-241) — physical half-life" data-info="The time required for half of a quantity of Pu-241 to decay. In the model this controls the timing of the Pu-241 → Am-241 isotope shift. The physical reference value is about 14.3 years.">i</button> <span class="val" id="halfVal">14.3y</span></label>
+          <input type="range" id="halfLife" min="10" max="20" step="0.1" value="14.3">
+          <div class="hint">Physical decay parameter. Pu-241 → Am-241 is treated as an isotope shift, not automatic destruction of total SNF value.</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Technology</h2>
+        <div class="field">
+          <label>Reprocessing pathway <button class="info-btn" type="button" aria-label="What is the pathway?" data-info-title="Reprocessing pathway" data-info="This selects how the model interprets the future use of the recovered material. MOX/PUREX represents today’s conventional route; ADS is a conceptual advanced pathway and does not imply demonstrated industrial economics.">i</button></label>
+          <div class="presets" style="margin-top:6px;">
+            <button class="preset-btn active" data-path="mox">MOX/PUREX (today)</button>
+            <button class="preset-btn" data-path="ads">ADS (conceptual)</button>
+          </div>
+          <div class="hint" id="pathwayHint">Same physics (Pu-241 → Am-241) — the pathway only changes how the accumulated Am-241 is economically interpreted.</div>
+        </div>
+        <div class="field">
+          <label>k, Am-241 penalty on the Pu-linked value <button class="info-btn" type="button" aria-label="What is k?" data-info-title="k — Am-241 economic penalty parameter" data-info="An illustrative parameter controlling how strongly the Pu-linked portion of fuel value is reduced as Pu-241 decays into Am-241. It is an economic proxy, not a measured universal constant. For ADS the model fixes k = 0 because the specific PUREX poisoning penalty is not applied; this is neutral, not an ADS bonus.">i</button> <span class="val" id="kVal">0.40</span></label>
+          <input type="range" id="k" min="0" max="1.5" step="0.05" value="0.4">
+          <div class="hint" id="kHint">Illustrative, not sourced — same caveat as f_Pu241. Applies only to the Pu-linked share, not the full V_fuel(0). Locked to 0 for the ADS pathway: this means "the PUREX-specific poisoning problem doesn't apply here," not "Am-241 adds value" — we have no source that quantifies a positive effect.</div>
+        </div>
+        <div class="field">
+          <label>p(T): p₀ → p_max, inflection year <button class="info-btn" type="button" aria-label="What is p of T?" data-info-title="p(T) — probability of technology readiness" data-info="The modelled probability that the selected future pathway is technically and industrially mature enough to deliver the assumed payoff at time T. p₀ is the starting probability, p_max is the long-run ceiling, and the inflection year controls when the curve rises most rapidly. This is a scenario assumption, not a forecast.">i</button></label>
+          <input type="range" id="p0" min="0" max="60" step="1" value="15">
+          <input type="range" id="pmax" min="40" max="99" step="1" value="80" style="margin-top:8px;">
+          <input type="range" id="t0tech" min="1" max="80" step="1" value="40" style="margin-top:8px;">
+          <div class="pvals" id="pRangeVal"></div>
+          <div class="hint" id="pWarn" style="display:none;color:var(--gold-dim);"></div>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="decision-box">
+        <div class="decision-row"><span class="k">Optimal delay (T* = argmax OV(T)) <button class="info-btn" type="button" aria-label="What is T star?" data-info-title="T* — optimal delay" data-info="The year T at which the model finds the highest option value OV(T). It is the model’s preferred timing for preserving the option, not a prediction of when a technology will actually arrive.">i</button></span><span class="v" id="tstarOut">—</span></div>
+        <div class="decision-row"><span class="k">Maximum option value, OV(T*) <button class="info-btn" type="button" aria-label="What is maximum option value?" data-info-title="OV(T*) — maximum option value" data-info="The highest net economic value of preserving the option to use the spent fuel later, after probability, isotope effects, avoided disposal, future reprocessing cost and storage cost are accounted for under the selected assumptions.">i</button></span><span class="v" id="ovstarOut">—</span></div>
+        <div class="decision-row"><span class="k">OV(0), act immediately <button class="info-btn" type="button" aria-label="What is OV zero?" data-info-title="OV(0) — act immediately" data-info="The option value when there is no delay. It is the reference case against which delayed preservation is evaluated.">i</button></span><span class="v" id="ov0Out">—</span></div>
+        <div class="verdict" id="verdictOut">—</div>
+      </div>
+
+      <div class="panel">
+        <h2>OV(T) — Full Curve</h2>
+        <div class="legend">
+          <span><span class="swatch" style="background:#d4af5a"></span>OV(T)</span>
+          <span><span class="swatch" style="background:#5c6c92; border-top:1px dashed #5c6c92;"></span>OV = 0</span>
+          <span><span class="swatch" style="background:#4fae8a"></span>T* (optimal)</span>
+        </div>
+        <div class="chart-box"><canvas id="ovChart"></canvas></div>
+        <details>
+          <summary>▸ show decision rule</summary>
+          <p style="font-size:12px; color:var(--ink-dim); line-height:1.6; margin-top:8px;">
+            DISPOSE NOW &nbsp;⟺&nbsp; OV(T*)≤0 (no year, not even T=0, ever pays off)<br>
+            PRESERVE OPTION until T* &nbsp;⟺&nbsp; T*&gt;0 <b>AND</b> OV(T*)&gt;0 (waiting is worth it)<br>
+            ACT NOW &nbsp;⟺&nbsp; T*=0 <b>AND</b> OV(T*)&gt;0 (the payoff is real, best pursued immediately — not the same as disposal)<br><br>
+            A positive T* alone was never sufficient on its own — it can be the least-negative point on an
+            unprofitable curve, which is why OV(T*)&gt;0 is required in every branch. This three-way version was
+            added after a red-team test found that T*=0 with a positive OV(T*) was being mislabeled as
+            "DISPOSE NOW," when it actually means the reprocessing pathway is worth pursuing immediately.
+          </p>
+        </details>
+        <details>
+          <summary>▸ show physics state</summary>
+          <p id="physicsState" style="font-size:12px; color:var(--ink-dim); line-height:1.6; margin-top:8px;"></p>
+        </details>
+      </div>
+
+      <div class="panel" style="margin-top:18px;">
+        <h2>Red-Team Diagnostic — Two Clocks</h2>
+        <p class="sub" style="margin-bottom:12px;">Sensitivity map: Pu-241 isotope clock (<span class="mono">T1/2</span>) × technology-maturation clock (<span class="mono">t₀</span>). Each cell recomputes both pathways with all other current assumptions held fixed.</p>
+        <div class="diagnostic-grid">
+          <div class="heat-card">
+            <h3>ΔT* — TIMING</h3>
+            <p>ADS T* − MOX T*, years. Zero means the pathway changes value but not the optimal year.</p>
+            <div class="heat-wrap"><canvas id="heatTiming"></canvas></div>
+            <div class="heat-legend" id="legendTiming"></div>
+          </div>
+          <div class="heat-card">
+            <h3>ΔOV* — VALUE</h3>
+            <p>ADS OV(T*) − MOX OV(T*), €bn. This is the economic magnitude of the pathway effect.</p>
+            <div class="heat-wrap"><canvas id="heatValue"></canvas></div>
+            <div class="heat-legend" id="legendValue"></div>
+          </div>
+          <div class="heat-card">
+            <h3>ΔVERDICT — DECISION</h3>
+            <p>Each cell compares the full verdict of MOX and ADS (DISPOSE, ACT NOW or PRESERVE). Colours group the pairs; hover shows the exact pair.</p>
+            <div class="heat-wrap"><canvas id="heatVerdict"></canvas></div>
+            <div class="heat-legend" id="legendVerdict"></div>
+            <div class="hint" id="pathNote" style="display:none;margin-top:8px;"></div>
+          </div>
+        </div>
+        <div class="diag-note" id="diagnosticNote">
+          The physical Pu-241 baseline is <b>14.3 years</b>. This diagnostic does not tune parameters to force a pathway difference; it maps where the current model naturally produces one.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="registryPanel" style="margin-top:18px;">
+    <h2>Parameter registry (provisional v0.2)</h2>
+    <details>
+      <summary style="cursor:pointer;color:var(--gold);">Origin, evidence quality and leverage of the 14 inputs</summary>
+      <div class="hint" style="margin:8px 0;">Origin and evidence quality are separate: origin says where a value comes from (sourced, scenario, illustrative, unknown), quality says how defensible it is as a real-world estimate. A star on sourced means the exact source is still to be verified. Leverage is computed from the model at the current settings: the nearest value of that single input at which the verdict changes. This is a provisional metadata audit, not validation of the model equations.</div>
+      <div id="registryBody"></div>
+    </details>
+  </div>
+
+  <footer>
+    <span class="warn">⚠ THIS MODEL DOES NOT PREDICT THE FUTURE</span>
+    It evaluates the economic consequences of explicitly stated assumptions and scenarios. Changing the
+    assumptions changes the result. This formula has already been revised once, after we found and fixed
+    an internal inconsistency (C_avoided was being credited independently of technology success) — it may
+    be revised again. If you find something broken, that is the point of publishing it.
+  </footer>
+</div>
+
+<div id="infoPopover" class="info-popover" role="dialog" aria-live="polite" aria-hidden="true">
+  <button class="info-close" type="button" aria-label="Close">×</button>
+  <div class="info-title" id="infoTitle"></div>
+  <div id="infoText"></div>
+</div>
+<div id="heatTooltip" class="heat-tooltip"></div>
+
+<script>
+let currentPathway = 'mox';
+
+const els = {};
+['r','Ctot','S0','tunnels','Cstor','Crep','delta','Vfuel','fPu','halfLife','k','p0','pmax','t0tech'].forEach(id=>{
+  els[id] = document.getElementById(id);
+});
+const out = {
+  rVal: document.getElementById('rVal'), CtotVal: document.getElementById('CtotVal'),
+  S0Val: document.getElementById('S0Val'), tunnelsVal: document.getElementById('tunnelsVal'),
+  CstorVal: document.getElementById('CstorVal'), CrepVal: document.getElementById('CrepVal'), multVal: document.getElementById('multVal'),
+  deltaVal: document.getElementById('deltaVal'), VfuelVal: document.getElementById('VfuelVal'),
+  fPuVal: document.getElementById('fPuVal'), halfVal: document.getElementById('halfVal'),
+  kVal: document.getElementById('kVal'),
+  pRangeVal: document.getElementById('pRangeVal'),
+  tstarOut: document.getElementById('tstarOut'), ovstarOut: document.getElementById('ovstarOut'),
+  ov0Out: document.getElementById('ov0Out'), verdictOut: document.getElementById('verdictOut'), physicsState: document.getElementById('physicsState'),
+};
+
+const YEARS_REMAINING = 94, TUNNELS_TOTAL = 100, TMAX = 94;
+
+// ---- LAYER 1: PHYSICS ----
+// PHYSICS v2:
+// Pu-241 decay changes isotope composition; it does NOT automatically erase the
+// value of all spent fuel. Only the explicitly assigned Pu-241-linked share of
+// Vfuel0 is allowed to decay in this aggregate value proxy.
+// The ingrown Am-241 share is reported diagnostically but is not penalized here.
+// Any technology-specific Am penalty belongs in the TECHNOLOGY layer.
+function isotopeState(T, Vfuel0, fPu, halfLife){
+  const lam = Math.LN2 / halfLife;
+  const puFractionRemaining = Math.exp(-lam*T);
+  const puValue = Vfuel0 * fPu * puFractionRemaining;
+  const nonPuValue = Vfuel0 * (1 - fPu);
+  const amIngrowthProxy = Vfuel0 * fPu * (1 - puFractionRemaining);
+  return {
+    lambda: lam,
+    puFractionRemaining,
+    puValue,
+    nonPuValue,
+    amIngrowthProxy,
+    totalValue: nonPuValue + puValue
+  };
+}
+
+// ---- LAYER 2: TECHNOLOGY ----
+// f_Am(T) is a TECHNOLOGY-layer interpretation of the same physical fact
+// (Pu-241 -> Am-241). It only discounts the Pu-linked value share -- the
+// non-Pu portion of Vfuel(0) is untouched by this pathway-specific penalty.
+// k=0 (ADS pathway) means "the PUREX-specific poisoning problem does not
+// apply" -- NOT "Am-241 adds value." No source quantifies a positive effect.
+function f_Am(puFractionRemaining, k){
+  return 1 / (1 + k*(1 - puFractionRemaining));
+}
+
+function Vfuel_physics(T, Vfuel0, fPu, halfLife, k){
+  const s = isotopeState(T, Vfuel0, fPu, halfLife);
+  const puValueAdjusted = s.puValue * f_Am(s.puFractionRemaining, k);
+  return {
+    ...s,
+    puValueAdjusted,
+    totalValue: s.nonPuValue + puValueAdjusted
+  };
+}
+
+function pTech(T, p0, pmax, t0){
+  const steep = 4.4/Math.max(t0,0.5);
+  return p0 + (pmax-p0)/(1+Math.exp(-steep*(T-t0)));
+}
+// ---- LAYER 3: ECONOMICS ----
+function sunkCost(T, S0, Ctot){
+  if(T<=0) return S0;
+  const frac = Math.min(T,YEARS_REMAINING)/YEARS_REMAINING;
+  return S0 + (Ctot-S0)*frac;
+}
+function retrievalFeasibility(T, tunnelsDone0){
+  if(T<=0) return 1 - tunnelsDone0/TUNNELS_TOTAL;
+  const frac = Math.min(T,YEARS_REMAINING)/YEARS_REMAINING;
+  const done = tunnelsDone0 + (TUNNELS_TOTAL-tunnelsDone0)*frac;
+  return 1 - Math.min(done/TUNNELS_TOTAL,1.0);
+}
+function Cavoided(T, Ctot, S0, tunnelsDone0){
+  const remaining = Math.max(Ctot - sunkCost(T,S0,Ctot), 0);
+  return remaining * retrievalFeasibility(T,tunnelsDone0);
+}
+function Creprocessing(T, Crep0, delta){
+  return Crep0*Math.pow(1-delta, T);
+}
+function successBranchPayoff(T, p){
+  const Vt = Vfuel_physics(T, p.Vfuel0, p.fPu, p.halfLife, p.k).totalValue;
+  const Cav = Cavoided(T, p.Ctot, p.S0, p.tunnelsDone0);
+  const Crep = Creprocessing(T, p.Crep0, p.delta);
+  return Vt + Cav - Crep;
+}
+// ---- LAYER 4: DECISION ----
+function OV(T, p, cumStorageCache){
+  const prob = pTech(T, p.p0, p.pmax, p.t0tech);
+  const payoff = successBranchPayoff(T, p);
+  return (prob*payoff)/Math.pow(1+p.r,T) - cumStorageCache[T];
+}
+// ---- Parameter registry (v0.2): origin and evidence quality are separate dimensions; every rating needs a reason.
+const ORIGINS = ['sourced','sourced*','scenario','illustrative','unknown'];   // sourced* = provisional, exact source still to be verified
+const QUALITIES = ['High','Medium','Low','Unassessed'];
+const REGISTRY = [
+ {id:'r', key:'r', div:100, unit:'%', name:'r, discount rate', origin:'scenario', q:'Unassessed', why:'Scenario rate, not a measured Onkalo-specific rate. The draft rating Medium contradicted the quality scale. The Gov 2.5% preset is to be checked against the UK Green Book (3.00% real for the first 30 years, per project brief, not yet verified).'},
+ {id:'Ctot', key:'Ctot', div:1, unit:' €bn', name:'C_disposal, total lifecycle cost', origin:'scenario', q:'Low', why:'Full lifecycle scope and comparability with Onkalo are not established.'},
+ {id:'S0', key:'S0', div:1, unit:' €bn', name:'S0, already spent today', origin:'sourced*', q:'Low', why:'Published estimates differ (about €0.9bn, €1bn, and €0.5bn for one project part only); scopes may differ.'},
+ {id:'tunnels', key:'tunnelsDone0', div:1, unit:'', name:'Tunnels completed today (of 100)', origin:'sourced', q:'Low', why:'Press sources support completed excavation of the first five disposal tunnels, not that they are loaded, backfilled or sealed. The model treats completed tunnels as irreversible, which biases slightly toward DISPOSE.'},
+ {id:'Cstor', key:'Cstor', div:1000, unit:' €M/yr', name:'C_storage, annual', origin:'illustrative', q:'Unassessed', why:'Working order-of-magnitude assumption with no source; to be defined as the incremental cost of waiting versus the disposal schedule.'},
+ {id:'Crep', key:'Crep0', div:1, unit:' €bn', name:'C_reprocess, today', origin:'scenario', q:'Low', why:'Derived from an earlier 2.0x reading of an IPFM remark about plant cost, not a measured ratio; what the cost covers (plant, fuel fabrication, secondary waste) is undefined. The 2.86x end of the UI hint has no source.'},
+ {id:'delta', key:'delta', div:100, unit:'%/yr', name:'δ, annual cost decline', origin:'scenario', q:'Unassessed', why:'Assumed learning rate, not an empirical learning curve.'},
+ {id:'Vfuel', key:'Vfuel0', div:1, unit:' €bn', name:'V_fuel(0), gross resource value', origin:'unknown', q:'Unassessed', why:'About 6,500 t times roughly $350/kgU; the price came from a chat without a source and USD was treated as EUR. Not the $360/kgU Harvard break-even figure.'},
+ {id:'fPu', key:'fPu', div:100, unit:'%', name:'f_Pu241, Pu-linked value share', origin:'unknown', q:'Unassessed', why:'Set to zero to avoid inventing a value share; not a measured isotopic fraction.'},
+ {id:'halfLife', key:'halfLife', div:1, unit:' y', name:'T1/2 (Pu-241)', origin:'sourced', q:'High', why:'Established nuclear-data quantity; the database and version still need to be cited.'},
+ {id:'k', key:'k', div:1, unit:'', name:'k, Am-241 penalty', origin:'illustrative', q:'Unassessed', why:'Illustrative coefficient, not calibrated. Locked to 0 for ADS, which means no PUREX poisoning, not a bonus.'},
+ {id:'p0', key:'p0', div:100, unit:'%', name:'p0, initial technology success', origin:'scenario', q:'Unassessed', why:'Scenario input, not an estimated probability. It is the lower asymptote of p(T), so p(0) is slightly higher (0.158 at defaults).'},
+ {id:'pmax', key:'pmax', div:100, unit:'%', name:'p_max, maximum technology success', origin:'scenario', q:'Unassessed', why:'Scenario ceiling, not a validated upper bound.'},
+ {id:'t0tech', key:'t0tech', div:1, unit:' y', name:'t0, technology maturity midpoint', origin:'scenario', q:'Unassessed', why:'Inflection time of p(T), not a forecast date.'}
+];
+// Nearest value (in slider units) of one input at which the verdict differs from the current one; null if none inside [lo, hi].
+function findFlip(p, e, lo, hi, step){
+  const verdictAt = v => decide({...p, [e.key]: v/e.div}).verdict;
+  const cur = decide(p).verdict, v0 = p[e.key]*e.div;
+  const n = Math.max(1, Math.min(Math.ceil((hi-lo)/step), 120)), h = (hi-lo)/n;
+  let best = null;
+  for(const dir of [1,-1]){
+    let a = v0, found = null;
+    for(let i=1;i<=n;i++){
+      const b = Math.min(hi, Math.max(lo, v0 + dir*i*h));
+      if(b===a) break;
+      if(verdictAt(b)!==cur){ found=[a,b]; break; }
+      a = b;
+    }
+    if(found){
+      let [x,y] = found;
+      for(let j=0;j<30;j++){ const m=(x+y)/2; if(verdictAt(m)===cur) x=m; else y=m; }
+      const val=(x+y)/2;
+      if(best===null || Math.abs(val-v0)<Math.abs(best-v0)) best=val;
+    }
+  }
+  return best;
+}
+const VERDICTS = ['DISPOSE','ACT_NOW','PRESERVE'];
+function verdictPairCode(moxVerdict, adsVerdict){
+  const m = VERDICTS.indexOf(moxVerdict), a = VERDICTS.indexOf(adsVerdict);
+  if(m<0 || a<0) throw new Error('unknown verdict: '+moxVerdict+' / '+adsVerdict);
+  return 3*m + a;
+}
+function describeVerdictPair(code){
+  const mox = VERDICTS[Math.floor(code/3)], ads = VERDICTS[code%3];
+  return {mox, ads, same: mox===ads};
+}
+function pInversionWarning(p0, pmax){ return p0 > pmax; }
+// Why the MOX-vs-ADS maps are neutral everywhere: the pathways differ only through the Am-241 penalty k on the Pu-linked share.
+function pathwaysIdentical(fPu, moxK){ return fPu <= 0 ? 'fPu' : (moxK <= 0 ? 'k' : null); }
+function decide(p){
+  let cum = new Array(TMAX+1).fill(0);
+  for(let t=1;t<=TMAX;t++) cum[t] = cum[t-1] + p.Cstor/Math.pow(1+p.r,t);
+  const curve = [];
+  let bestT=0, bestOV=-Infinity;
+  for(let t=0;t<=TMAX;t++){
+    const ov = OV(t,p,cum);
+    curve.push(ov);
+    if(ov>bestOV){ bestOV=ov; bestT=t; }
+  }
+  // Three-way verdict, not two:
+  //  - bestOV<=0            -> DISPOSE:  no T, not even T=0, ever pays off
+  //  - bestT>0 and bestOV>0 -> PRESERVE: waiting until T* is worth it
+  //  - bestT=0 and bestOV>0 -> ACT NOW:  the payoff is real, but the best time
+  //                            to pursue it is immediately, not after waiting.
+  //                            This is NOT the same as "dispose" -- it means
+  //                            pursue the reprocessing pathway without delay.
+  let verdict;
+  if(bestOV<=0) verdict='DISPOSE';
+  else if(bestT>0) verdict='PRESERVE';
+  else verdict='ACT_NOW';
+  const preserve = verdict==='PRESERVE'; // kept for the Two-Clocks diagnostic maps, which ask "is waiting warranted"
+  return {curve, bestT, bestOV, preserve, verdict, ov0: curve[0]};
+}
+
+
+// ---- RED-TEAM DIAGNOSTIC: T1/2 × t0 ----
+const diagCanvases = {
+  timing: document.getElementById('heatTiming'),
+  value: document.getElementById('heatValue'),
+  verdict: document.getElementById('heatVerdict')
+};
+
+function scenarioResult(base, halfLife, t0tech, k){
+  return decide({...base, halfLife, t0tech, k});
+}
+
+function drawHeatmap(canvas, matrix, xs, ys, opts){
+  if(!canvas) return;
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  const w = Math.max(260, Math.floor(rect.width));
+  const h = Math.max(260, Math.floor(rect.height));
+  canvas.width = w*dpr; canvas.height = h*dpr;
+  const ctx = canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+  ctx.clearRect(0,0,w,h);
+  const pad = {l:42,r:10,t:10,b:34};
+  const pw=w-pad.l-pad.r, ph=h-pad.t-pad.b;
+  const cw=pw/xs.length, ch=ph/ys.length;
+  const vals=matrix.flat();
+  let min=Math.min(...vals), max=Math.max(...vals);
+  if(opts.symmetric){ const m=Math.max(Math.abs(min),Math.abs(max),opts.floor||0.0001); min=-m; max=m; }
+  if(min===max){min-=1;max+=1;}
+  const lerp=(a,b,t)=>a+(b-a)*t;
+  const rgb=(r,g,b)=>`rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+  function color(v){
+    if(opts.mode==='verdict'){
+      const d = describeVerdictPair(v);
+      if(d.same) return 'rgba(92,108,146,.18)';
+      if(d.mox==='DISPOSE' && d.ads==='PRESERVE') return 'rgba(79,174,138,.78)';
+      if(d.mox==='PRESERVE' && d.ads==='DISPOSE') return 'rgba(209,102,90,.78)';
+      return 'rgba(214,160,60,.78)';
+    }
+    const t=(v-min)/(max-min);
+    if(opts.symmetric){
+      const z=(v-min)/(max-min);
+      if(z<0.5){ const q=z*2; return rgb(lerp(209,92,q),lerp(102,108,q),lerp(90,146,q)); }
+      const q=(z-.5)*2; return rgb(lerp(92,79,q),lerp(108,174,q),lerp(146,138,q));
+    }
+    return rgb(lerp(92,79,t),lerp(108,174,t),lerp(146,138,t));
+  }
+  for(let j=0;j<ys.length;j++){
+    for(let i=0;i<xs.length;i++){
+      const v=matrix[j][i];
+      ctx.fillStyle=color(v);
+      ctx.fillRect(pad.l+i*cw,pad.t+(ys.length-1-j)*ch,Math.ceil(cw)+.5,Math.ceil(ch)+.5);
+    }
+  }
+  // Zero-crossing boundary: outline cells adjacent to a sign change (skip for verdict mode,
+  // which is already a hard 3-color categorical map with no "gradual" boundary to trace).
+  if(opts.mode!=='verdict'){
+    ctx.strokeStyle='rgba(232,236,245,.85)'; ctx.lineWidth=1.2;
+    for(let j=0;j<ys.length;j++){
+      for(let i=0;i<xs.length;i++){
+        const v=matrix[j][i];
+        const right = i+1<xs.length ? matrix[j][i+1] : v;
+        const up = j+1<ys.length ? matrix[j+1][i] : v;
+        const yTop = pad.t+(ys.length-1-j)*ch;
+        const xLeft = pad.l+i*cw;
+        if((v<=0)!==(right<=0)){
+          ctx.beginPath(); ctx.moveTo(xLeft+cw,yTop); ctx.lineTo(xLeft+cw,yTop+ch); ctx.stroke();
+        }
+        if((v<=0)!==(up<=0)){
+          ctx.beginPath(); ctx.moveTo(xLeft,yTop); ctx.lineTo(xLeft+cw,yTop); ctx.stroke();
+        }
+      }
+    }
+  }
+  // physical baseline T1/2 = 14.3 y
+  const yPhys=pad.t+(ys.length-1-(14.3-1))*ch+ch/2;
+  ctx.strokeStyle='#d4af5a'; ctx.lineWidth=1.5; ctx.setLineDash([4,3]);
+  ctx.beginPath(); ctx.moveTo(pad.l,yPhys); ctx.lineTo(pad.l+pw,yPhys); ctx.stroke();
+  // current t0
+  const t0=parseFloat(els.t0tech.value);
+  const idx=Math.max(0,Math.min(xs.length-1,Math.round(t0)-1));
+  const xCur=pad.l+idx*cw+cw/2;
+  ctx.beginPath(); ctx.moveTo(xCur,pad.t); ctx.lineTo(xCur,pad.t+ph); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#94a3c4'; ctx.font="9px 'JetBrains Mono', monospace";
+  ctx.textAlign='center';
+  const step=xs.length>20?5:2;
+  xs.forEach((x,i)=>{if(i%step===0||i===xs.length-1) ctx.fillText(x,pad.l+i*cw+cw/2,h-18);});
+  ctx.textAlign='right';
+  ys.forEach((y,j)=>{if(j%step===0||j===ys.length-1) ctx.fillText(y,pad.l-6,pad.t+(ys.length-1-j)*ch+ch/2+3);});
+  ctx.textAlign='center'; ctx.fillText('t₀, years →',pad.l+pw/2,h-3);
+  ctx.save(); ctx.translate(11,pad.t+ph/2); ctx.rotate(-Math.PI/2); ctx.fillText('T1/2, years →',0,0); ctx.restore();
+  ctx.fillStyle='#d4af5a'; ctx.font="9px 'JetBrains Mono', monospace";
+  ctx.textAlign='left'; ctx.fillText('14.3y',pad.l+4,yPhys-3);
+  ctx.fillStyle='#94a3c4'; ctx.textAlign='left'; ctx.fillText('current t₀',Math.min(w-55,xCur+4),pad.t+12);
+
+  // Store geometry + data for hover lookup and legend rendering.
+  canvas.$diag = {matrix, xs, ys, min, max, opts, pad, cw, ch, colorFn: color};
+  return {min, max};
+}
+
+function renderLegend(el, canvas, label){
+  if(!el || !canvas || !canvas.$diag) return;
+  const {min, max, opts, colorFn} = canvas.$diag;
+  if(opts.mode==='verdict'){
+    el.innerHTML = `<div class="chips">
+      <span class="chip"><span class="sw" style="background:rgba(79,174,138,.78)"></span>MOX disposes, ADS preserves</span>
+      <span class="chip"><span class="sw" style="background:rgba(92,108,146,.18); border:1px solid #334467;"></span>same verdict in both pathways</span>
+      <span class="chip"><span class="sw" style="background:rgba(209,102,90,.78)"></span>MOX preserves, ADS disposes</span>
+      <span class="chip"><span class="sw" style="background:rgba(214,160,60,.78)"></span>other difference (involves ACT NOW; see hover and table)</span>
+    </div>`;
+    return;
+  }
+  const stops = 6;
+  const gradParts = [];
+  for(let i=0;i<=stops;i++){
+    const v = min + (max-min)*i/stops;
+    gradParts.push(colorFn(v) + ' ' + (i/stops*100) + '%');
+  }
+  const unit = label || '';
+  el.innerHTML = `<div class="bar" style="background:linear-gradient(90deg, ${gradParts.join(',')})"></div>
+    <div class="ticks"><span>${min.toFixed(min<1&&min>-1?3:1)}${unit}</span><span>0${unit}</span><span>${max.toFixed(max<1&&max>-1?3:1)}${unit}</span></div>`;
+}
+
+function renderRegistry(p){
+  const body = document.getElementById('registryBody');
+  if(!body) return;
+  const qc = {High:'#4fae8a', Medium:'#8fb6d9', Low:'#d6a03c', Unassessed:'#8891a8'};
+  body.innerHTML = REGISTRY.map(e=>{
+    const s = els[e.id], lo=+s.min, hi=+s.max, st=+s.step||1, v=p[e.key]*e.div;
+    const f = findFlip(p, e, lo, hi, st);
+    const dist = f===null ? 'no verdict flip within the slider range'
+      : 'verdict flips at about '+f.toFixed(2)+e.unit+(v ? ' ('+Math.round(Math.abs(f-v)/Math.abs(v)*100)+'% from the current value)' : '');
+    return `<div class="rg-row"><b>${e.name}</b>: ${(+v.toFixed(3))}${e.unit}<br>
+      <span class="rg-badge">origin: ${e.origin}</span><span class="rg-badge" style="color:${qc[e.q]};border-color:${qc[e.q]}">quality: ${e.q}</span><br>
+      ${e.why}<br><i>Leverage: ${dist}.</i></div>`;
+  }).join('');
+}
+
+function renderDiagnostics(base){
+  const xs=Array.from({length:30},(_,i)=>i+1);
+  const moxK=parseFloat(els.k.value); // keep MOX reference fixed even when ADS is selected and k is locked in the UI
+  const ys=Array.from({length:30},(_,i)=>i+1);
+  const timing=[], value=[], verdict=[];
+  for(let y=0;y<ys.length;y++){
+    const a=[],b=[],c=[];
+    for(let x=0;x<xs.length;x++){
+      const m=scenarioResult(base,ys[y],xs[x],moxK);
+      const ares=scenarioResult(base,ys[y],xs[x],0);
+      a.push(ares.bestT-m.bestT);
+      b.push(ares.bestOV-m.bestOV);
+      c.push(verdictPairCode(m.verdict, ares.verdict));
+    }
+    timing.push(a); value.push(b); verdict.push(c);
+  }
+  drawHeatmap(diagCanvases.timing,timing,xs,ys,{symmetric:true});
+  drawHeatmap(diagCanvases.value,value,xs,ys,{symmetric:false});
+  drawHeatmap(diagCanvases.verdict,verdict,xs,ys,{mode:'verdict'});
+  renderLegend(document.getElementById('legendTiming'), diagCanvases.timing, 'y');
+  renderLegend(document.getElementById('legendValue'), diagCanvases.value, 'bn');
+  renderLegend(document.getElementById('legendVerdict'), diagCanvases.verdict, '');
+  { const cnt = Array(9).fill(0); for(const row of verdict) for(const c of row) cnt[c]++;
+    const th = 'padding:2px 8px;font-weight:400;';
+    const hd = VERDICTS.map(v=>`<th style="${th}">${v}</th>`).join('');
+    const body = VERDICTS.map((mv,mi)=>`<tr><th style="${th}text-align:left">${mv}</th>${VERDICTS.map((_,ai)=>`<td style="padding:2px 8px;text-align:right">${cnt[3*mi+ai]}</td>`).join('')}</tr>`).join('');
+    document.getElementById('legendVerdict').insertAdjacentHTML('beforeend', `<table style="margin-top:8px;font-size:11px;border-collapse:collapse"><caption style="text-align:left;color:var(--ink-dim)">Cells by verdict pair (rows: MOX, columns: ADS)</caption><tr><th></th>${hd}</tr>${body}</table>`);
+  }
+  let timingCells=0, verdictCells=0, maxDV=0;
+  for(let j=0;j<30;j++) for(let i=0;i<30;i++){ if(timing[j][i]!==0) timingCells++; if(!describeVerdictPair(verdict[j][i]).same) verdictCells++; maxDV=Math.max(maxDV,value[j][i]); }
+  { const why = pathwaysIdentical(base.fPu, moxK), pn = document.getElementById('pathNote');
+    if(pn){ pn.style.display = why ? 'block' : 'none';
+      pn.textContent = why==='fPu' ? 'f_Pu = 0: MOX and ADS are identical by construction, so every cell is neutral. Raise f_Pu to see where the pathways differ.'
+        : why==='k' ? 'k = 0: the MOX penalty is zero, so MOX and ADS are identical and every cell is neutral. Raise k to see where the pathways differ.' : ''; } }
+  const note=document.getElementById('diagnosticNote');
+  note.innerHTML='Physical baseline: <b>T1/2 = 14.3 y</b>. In the 1–30 y × 1–30 y map, the current assumptions produce a non-zero ΔT* in <b>'+timingCells+'</b> of 900 cells and a verdict change in <b>'+verdictCells+'</b> cells. Maximum ADS−MOX value uplift on the grid: <b>€'+maxDV.toFixed(3)+'bn</b>. These are diagnostic results, not forecasts.';
+}
+
+let chart;
+function render(){
+  const p = {
+    r: parseFloat(els.r.value)/100,
+    Ctot: parseFloat(els.Ctot.value),
+    S0: parseFloat(els.S0.value),
+    tunnelsDone0: parseFloat(els.tunnels.value),
+    Cstor: parseFloat(els.Cstor.value)/1000,
+    Crep0: parseFloat(els.Crep.value),
+    delta: parseFloat(els.delta.value)/100,
+    Vfuel0: parseFloat(els.Vfuel.value),
+    fPu: parseFloat(els.fPu.value)/100,
+    halfLife: parseFloat(els.halfLife.value),
+    k: currentPathway === 'ads' ? 0 : parseFloat(els.k.value),
+    p0: parseFloat(els.p0.value)/100,
+    pmax: parseFloat(els.pmax.value)/100,
+    t0tech: parseFloat(els.t0tech.value),
+  };
+
+  out.rVal.textContent = (p.r*100).toFixed(1)+'%';
+  out.CtotVal.textContent = '€'+p.Ctot.toFixed(2)+'bn';
+  out.S0Val.textContent = '€'+p.S0.toFixed(2)+'bn';
+  out.tunnelsVal.textContent = p.tunnelsDone0;
+  out.CstorVal.textContent = '€'+els.Cstor.value+'M/yr';
+  out.CrepVal.textContent = '€'+p.Crep0.toFixed(2)+'bn';
+  out.multVal.textContent = (p.Crep0/p.Ctot).toFixed(2)+'×';  // derived read-out only
+  out.deltaVal.textContent = els.delta.value+'%/yr';
+  out.VfuelVal.textContent = '€'+p.Vfuel0.toFixed(2)+'bn';
+  out.fPuVal.textContent = Math.round(p.fPu*100)+'%';
+  out.halfVal.textContent = p.halfLife.toFixed(1)+'y';
+  out.kVal.textContent = p.k.toFixed(2) + (currentPathway==='ads' ? ' (locked)' : '');
+  out.pRangeVal.innerHTML = '<span>p₀ <b>'+Math.round(p.p0*100)+'%</b></span><span>p_max <b>'+Math.round(p.pmax*100)+'%</b></span><span>year <b>'+p.t0tech+'</b></span>';
+  { const pw = document.getElementById('pWarn'), inv = pInversionWarning(p.p0, p.pmax);
+    if(pw){ pw.style.display = inv ? 'block' : 'none'; pw.textContent = inv ? '⚠ p₀ is higher than p_max: the technology-success probability falls over time. This is allowed, but it is usually not intended.' : ''; } }
+
+  const res = decide(p);
+  out.tstarOut.textContent = res.bestT + ' years';
+  out.ovstarOut.textContent = (res.bestOV>=0?'+':'') + '€'+res.bestOV.toFixed(3)+'bn';
+  out.ov0Out.textContent = (res.ov0>=0?'+':'') + '€'+res.ov0.toFixed(3)+'bn';
+
+  const ps = Vfuel_physics(res.bestT, p.Vfuel0, p.fPu, p.halfLife, p.k);
+  out.physicsState.innerHTML =
+    'At T* = '+res.bestT+'y ['+currentPathway.toUpperCase()+' pathway]: Pu-241-linked pool remaining ≈ '+(ps.puFractionRemaining*100).toFixed(1)+'%; ' +
+    'Pu-linked value before penalty ≈ €'+ps.puValue.toFixed(3)+'bn, after f_Am(T) ≈ €'+ps.puValueAdjusted.toFixed(3)+'bn; ' +
+    'non-Pu baseline value ≈ €'+ps.nonPuValue.toFixed(3)+'bn. ' +
+    'Am-241 ingrowth proxy (diagnostic): €'+ps.amIngrowthProxy.toFixed(3)+'bn.';
+
+  if(res.verdict==='PRESERVE'){
+    out.verdictOut.textContent = `PRESERVE OPTION until T = ${res.bestT}`;
+    out.verdictOut.className = 'verdict preserve';
+  } else if(res.verdict==='ACT_NOW'){
+    out.verdictOut.textContent = `ACT NOW — pursue reprocessing immediately`;
+    out.verdictOut.className = 'verdict actnow';
+  } else {
+    out.verdictOut.textContent = 'DISPOSE NOW';
+    out.verdictOut.className = 'verdict dispose';
+  }
+
+  const labels = Array.from({length:TMAX+1},(_,i)=>i);
+  if(!chart){
+    chart = new Chart(document.getElementById('ovChart'), {
+      type:'line',
+      data:{ labels, datasets:[
+        { label:'OV(T)', data:res.curve, borderColor:'#d4af5a', borderWidth:2.5, pointRadius:0, tension:0.1 },
+        { label:'OV=0', data: labels.map(()=>0), borderColor:'#5c6c92', borderDash:[4,4], borderWidth:1, pointRadius:0 }
+      ]},
+      options:{
+        responsive:true, maintainAspectRatio:false, animation:{duration:150},
+        plugins:{legend:{display:false}},
+        scales:{
+          x:{title:{display:true,text:'T, years',color:'#94a3c4',font:{size:11}}, grid:{display:false}, ticks:{color:'#5c6c92',maxTicksLimit:10}},
+          y:{title:{display:true,text:'€ billion',color:'#94a3c4',font:{size:11}}, grid:{color:'#223151'}, ticks:{color:'#5c6c92'}}
+        }
+      },
+      plugins:[{
+        afterDraw:(c)=>{
+          const tb = c.$tstar; if(tb===undefined) return;
+          const xScale=c.scales.x, yScale=c.scales.y, ctx=c.ctx;
+          const xPix=xScale.getPixelForValue(tb);
+          ctx.save(); ctx.beginPath(); ctx.setLineDash([3,3]);
+          ctx.strokeStyle='#4fae8a'; ctx.lineWidth=1.5;
+          ctx.moveTo(xPix,yScale.top); ctx.lineTo(xPix,yScale.bottom); ctx.stroke();
+          ctx.restore();
+        }
+      }]
+    });
+  } else {
+    chart.data.datasets[0].data = res.curve;
+    chart.update('none');
+  }
+  chart.$tstar = res.bestT;
+  chart.update('none');
+  renderDiagnostics(p);
+  renderRegistry(p);
+}
+
+document.querySelectorAll('.preset-btn[data-r]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.preset-btn[data-r]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    els.r.value = btn.dataset.r;
+    render();
+  });
+});
+
+document.querySelectorAll('.preset-btn[data-path]').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.preset-btn[data-path]').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentPathway = btn.dataset.path;
+    const kHint = document.getElementById('kHint');
+    const pathwayHint = document.getElementById('pathwayHint');
+    if(currentPathway === 'ads'){
+      els.k.disabled = true;
+      els.k.style.opacity = '0.35';
+      kHint.textContent = 'Locked to 0 for ADS: means "the PUREX-specific poisoning problem does not apply" — not "Am-241 adds value." No source quantifies a positive effect.';
+      pathwayHint.textContent = 'ADS pathway selected: k is fixed at 0 (neutral, not a bonus).';
+    } else {
+      els.k.disabled = false;
+      els.k.style.opacity = '1';
+      kHint.textContent = 'Illustrative, not sourced — same caveat as f_Pu241. Applies only to the Pu-linked share, not the full V_fuel(0).';
+      pathwayHint.textContent = 'Same physics (Pu-241 → Am-241) — the pathway only changes how the accumulated Am-241 is economically interpreted.';
+    }
+    render();
+  });
+});
+// Info popovers
+const infoPopover = document.getElementById("infoPopover");
+const infoTitle = document.getElementById("infoTitle");
+const infoText = document.getElementById("infoText");
+const infoClose = infoPopover.querySelector(".info-close");
+let activeInfoBtn = null;
+
+function closeInfo(){
+  infoPopover.classList.remove("show");
+  infoPopover.setAttribute("aria-hidden","true");
+  activeInfoBtn = null;
+}
+
+function openInfo(btn){
+  const title = btn.getAttribute("data-info-title") || "Information";
+  const text = btn.getAttribute("data-info") || "";
+  infoTitle.textContent = title;
+  infoText.textContent = text;
+  infoPopover.classList.add("show");
+  infoPopover.setAttribute("aria-hidden","false");
+
+  // Position near the clicked button, keeping the popover inside the viewport.
+  const r = btn.getBoundingClientRect();
+  const margin = 14;
+  const gap = 8;
+  const pop = infoPopover;
+  pop.style.left = "0px";
+  pop.style.top = "0px";
+  const pw = Math.min(390, window.innerWidth - 28);
+  const ph = pop.offsetHeight;
+  let left = r.left;
+  if(left + pw > window.innerWidth - margin) left = window.innerWidth - pw - margin;
+  if(left < margin) left = margin;
+  let top = r.bottom + gap;
+  if(top + ph > window.innerHeight - margin) top = r.top - ph - gap;
+  if(top < margin) top = margin;
+  pop.style.left = `${left}px`;
+  pop.style.top = `${top}px`;
+  activeInfoBtn = btn;
+}
+
+document.querySelectorAll(".info-btn").forEach(btn=>{
+  btn.addEventListener("click", e=>{
+    e.preventDefault();
+    e.stopPropagation();
+    if(activeInfoBtn === btn && infoPopover.classList.contains("show")) closeInfo();
+    else openInfo(btn);
+  });
+});
+infoClose.addEventListener("click", closeInfo);
+document.addEventListener("click", e=>{
+  if(infoPopover.classList.contains("show") && !infoPopover.contains(e.target) && !e.target.closest(".info-btn")) closeInfo();
+});
+document.addEventListener("keydown", e=>{ if(e.key === "Escape") closeInfo(); });
+window.addEventListener("resize", ()=>{ if(activeInfoBtn) openInfo(activeInfoBtn); });
+
+// Heatmap hover tooltips
+const heatTooltip = document.getElementById('heatTooltip');
+function heatCellAt(canvas, clientX, clientY){
+  const d = canvas.$diag; if(!d) return null;
+  const rect = canvas.getBoundingClientRect();
+  const x = clientX - rect.left, y = clientY - rect.top;
+  const {pad, cw, ch, xs, ys, matrix} = d;
+  if(x<pad.l || y<pad.t) return null;
+  const i = Math.floor((x-pad.l)/cw);
+  const jFromTop = Math.floor((y-pad.t)/ch);
+  if(i<0 || i>=xs.length || jFromTop<0 || jFromTop>=ys.length) return null;
+  const j = ys.length-1-jFromTop;
+  return {t0: xs[i], halfLife: ys[j], value: matrix[j][i]};
+}
+function attachHeatHover(canvas, formatFn){
+  if(!canvas) return;
+  canvas.addEventListener('mousemove', e=>{
+    const cell = heatCellAt(canvas, e.clientX, e.clientY);
+    if(!cell){ heatTooltip.style.display='none'; return; }
+    heatTooltip.innerHTML = `T1/2=${cell.halfLife}y, t0=${cell.t0}y<br>${formatFn(cell.value)}`;
+    heatTooltip.style.display='block';
+    let left = e.clientX+14, top = e.clientY+14;
+    if(left + 180 > window.innerWidth) left = e.clientX-190;
+    if(top + 50 > window.innerHeight) top = e.clientY-60;
+    heatTooltip.style.left = left+'px';
+    heatTooltip.style.top = top+'px';
+  });
+  canvas.addEventListener('mouseleave', ()=>{ heatTooltip.style.display='none'; });
+}
+attachHeatHover(diagCanvases.timing, v => `ΔT* = ${v>0?'+':''}${v} years`);
+attachHeatHover(diagCanvases.value, v => `ΔOV* = ${v>=0?'+':''}€${v.toFixed(4)}bn`);
+attachHeatHover(diagCanvases.verdict, c => { const d = describeVerdictPair(c); return d.same ? 'same verdict: '+d.mox : 'MOX: '+d.mox+' → ADS: '+d.ads; });
+
+Object.values(els).forEach(el=>el.addEventListener('input', render));
+render();
+</script>
+
+</body>
+</html>

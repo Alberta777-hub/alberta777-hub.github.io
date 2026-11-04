@@ -31,7 +31,7 @@ if (/document\.|window\.|els\./.test(coreSrc))
   throw new Error("DOM reference leaked into core block");
 const core = new Function(
   coreSrc +
-    "\nreturn {decide,scenarioResult,Vfuel_physics,Cavoided,Creprocessing,pTech,successBranchPayoff,TMAX,VERDICTS,verdictPairCode,describeVerdictPair,pInversionWarning,pathwaysIdentical};"
+    "\nreturn {decide,scenarioResult,Vfuel_physics,Cavoided,Creprocessing,pTech,successBranchPayoff,TMAX,VERDICTS,verdictPairCode,describeVerdictPair,pInversionWarning,pathwaysIdentical,REGISTRY,ORIGINS,QUALITIES,findFlip};"
 )();
 const sha = (s) =>
   crypto.createHash("sha256").update(s).digest("hex").slice(0, 16);
@@ -607,6 +607,18 @@ console.log("\n[5b] Verdict pairs, labels, warnings");
   check(/id="pathNote"/.test(src) && /f_Pu = 0: MOX and ADS are identical by construction/.test(src), "neutral-map note element and text present in html");
   { const gk = grid({ ...P0, fPu: 0.5, delta: 0.18 }, 0), sk = stats(gk);
     check(sk.nonzeroT === 0 && sk.nonzeroVerdict === 0 && sk.nonzeroValue === 0, "the note is true: with MOX k=0 (fPu=50%) MOX and ADS are identical in all 900 cells", JSON.stringify(sk)); }
+  // ---- parameter registry
+  const reg = core.REGISTRY;
+  check(reg.length === 14 && new Set(reg.map((e) => e.id)).size === 14 && IDS.every((id) => reg.some((e) => e.id === id)), "registry has exactly one entry per input slider (14)");
+  check(reg.every((e) => core.ORIGINS.includes(e.origin) && core.QUALITIES.includes(e.q)), "registry origin and quality values are from the defined scales");
+  check(reg.every((e) => typeof e.why === "string" && e.why.length > 25), "every rating has a written reason");
+  check(reg.filter((e) => e.q === "High").every((e) => e.origin === "sourced") && reg.filter((e) => e.origin === "unknown" || e.origin === "illustrative").every((e) => e.q === "Unassessed" || e.q === "Low"), "no High rating without a source; unknown/illustrative inputs are never rated above Low");
+  check(reg.every((e) => /^[a-zA-Z0-9]+$/.test(e.key) && P0[e.key] !== undefined), "registry keys exist in the model parameters");
+  const eC = reg.find((e) => e.id === "Crep"), fC = core.findFlip(P0, eC, inputs.Crep.min, inputs.Crep.max, inputs.Crep.step);
+  check(fC !== null && Math.abs(fC - (2.3 + 2.6 * 0.95)) < 0.02, "leverage: C_reprocess flip found at the analytic 4.77 bn", "got " + (fC && fC.toFixed(3)));
+  const eK = reg.find((e) => e.id === "k");
+  check(core.findFlip(P0, eK, inputs.k.min, inputs.k.max, inputs.k.step) === null, "leverage: k has no flip at f_Pu=0 (no effect, as the UI note says)");
+  check(/id="registryBody"/.test(src) && /renderRegistry\(p\)/.test(src), "registry panel and its render call are in the html");
   const tun = (src.match(/<label>Tunnels[\s\S]*?<\/label>/) || [""])[0];
   check(/Tunnels completed today/.test(tun) && !/sealed/i.test(tun.replace(/backfilled or sealed/g, "")), "tunnel label and info say completed (sealed appears only in the not-the-same-as note)");
 }
