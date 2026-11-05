@@ -31,7 +31,7 @@ if (/document\.|window\.|els\./.test(coreSrc))
   throw new Error("DOM reference leaked into core block");
 const core = new Function(
   coreSrc +
-    "\nreturn {decide,scenarioResult,Vfuel_physics,Cavoided,Creprocessing,pTech,successBranchPayoff,TMAX,VERDICTS,verdictPairCode,describeVerdictPair,pInversionWarning,pathwaysIdentical,REGISTRY,ORIGINS,QUALITIES,findFlip};"
+    "\nreturn {decide,scenarioResult,Vfuel_physics,Cavoided,Creprocessing,pTech,successBranchPayoff,TMAX,VERDICTS,verdictPairCode,describeVerdictPair,pInversionWarning,pathwaysIdentical,REGISTRY,ORIGINS,QUALITIES,findFlip,SPOKEN_UNIT};"
 )();
 const sha = (s) =>
   crypto.createHash("sha256").update(s).digest("hex").slice(0, 16);
@@ -619,6 +619,11 @@ console.log("\n[5b] Verdict pairs, labels, warnings");
   const eK = reg.find((e) => e.id === "k");
   check(core.findFlip(P0, eK, inputs.k.min, inputs.k.max, inputs.k.step) === null, "leverage: k has no flip at f_Pu=0 (no effect, as the UI note says)");
   check(/id="registryBody"/.test(src) && /renderRegistry\(p\)/.test(src), "registry panel and its render call are in the html");
+  // ---- accessibility
+  check(core.REGISTRY.every((e) => typeof core.SPOKEN_UNIT[e.unit] === "string"), "every slider unit has a spoken form for aria-valuetext");
+  check(/id="verdictOut" role="status" aria-live="polite" aria-atomic="true"/.test(src), "verdict box is a polite live region");
+  check(/aria-valuetext/.test(src) && /aria-describedby/.test(src) && /setAttribute\('aria-label', e\.name\)/.test(src), "sliders get aria-label, aria-describedby and aria-valuetext from the registry");
+  check(/input\[type=range\]:focus-visible/.test(src) && /prefers-reduced-motion: reduce/.test(src) && /\.sr-only/.test(src), "visible keyboard focus, reduced-motion rule and sr-only class are present");
   const tun = (src.match(/<label>Tunnels[\s\S]*?<\/label>/) || [""])[0];
   check(/Tunnels completed today/.test(tun) && !/sealed/i.test(tun.replace(/backfilled or sealed/g, "")), "tunnel label and info say completed (sealed appears only in the not-the-same-as note)");
 }
