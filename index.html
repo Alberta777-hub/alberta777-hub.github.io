@@ -246,7 +246,7 @@
           <div class="hint" id="kHint">Illustrative, not sourced — same caveat as f_Pu241. Applies only to the Pu-linked share, not the full V_fuel(0). Locked to 0 for the ADS pathway: this means "the PUREX-specific poisoning problem doesn't apply here," not "Am-241 adds value" — we have no source that quantifies a positive effect.</div>
         </div>
         <div class="field">
-          <label>p(T): p₀ → p_max, inflection year <button class="info-btn" type="button" aria-label="What is p of T?" data-info-title="p(T) — probability of technology readiness" data-info="The modelled probability that the selected future pathway is technically and industrially mature enough to deliver the assumed payoff at time T. p₀ is the starting probability, p_max is the long-run ceiling, and the inflection year controls when the curve rises most rapidly. This is a scenario assumption, not a forecast.">i</button></label>
+          <label>p(T): p₀ → p_max, inflection year <button class="info-btn" type="button" aria-label="What is p of T?" data-info-title="p(T) — probability of technology readiness" data-info="The modelled probability that the selected future pathway is technically and industrially mature enough to deliver the assumed payoff at time T. p₀ is the probability today (T = 0), p_max is the long-run ceiling that the curve approaches, and the inflection year controls when the curve rises most rapidly. This is a scenario assumption, not a forecast.">i</button></label>
           <input type="range" id="p0" min="0" max="60" step="1" value="15">
           <input type="range" id="pmax" min="40" max="99" step="1" value="80" style="margin-top:8px;">
           <input type="range" id="t0tech" min="1" max="80" step="1" value="40" style="margin-top:8px;">
@@ -326,7 +326,7 @@
   </div>
 
   <div class="panel" id="registryPanel" style="margin-top:18px;">
-    <h2>Parameter registry (provisional v0.2)</h2>
+    <h2>Parameter registry (provisional v0.3)</h2>
     <details id="registryDetails">
       <summary style="cursor:pointer;color:var(--gold);">Origin, evidence quality and leverage of the 14 inputs</summary>
       <div class="hint" style="margin:8px 0;">Origin and evidence quality are separate: origin says where a value comes from (sourced, scenario, illustrative, unknown), quality says how defensible it is as a real-world estimate. A star on sourced means the exact source is still to be verified. Leverage is computed from the model at the current settings: the nearest value of that single input at which the verdict changes. This is a provisional metadata audit, not validation of the model equations.</div>
@@ -414,9 +414,13 @@ function Vfuel_physics(T, Vfuel0, fPu, halfLife, k){
   };
 }
 
+// p(T): logistic curve rescaled so that p(0) = p0 exactly and p(T) approaches pmax for large T.
+// (Before registry v0.3, p0 was the lower asymptote and p(0) was about 1.2% of the range above it.)
 function pTech(T, p0, pmax, t0){
   const steep = 4.4/Math.max(t0,0.5);
-  return p0 + (pmax-p0)/(1+Math.exp(-steep*(T-t0)));
+  const L = x => 1/(1+Math.exp(-steep*(x-t0)));
+  const L0 = L(0);
+  return p0 + (pmax-p0)*(L(T)-L0)/(1-L0);
 }
 // ---- LAYER 3: ECONOMICS ----
 function sunkCost(T, S0, Ctot){
@@ -464,7 +468,7 @@ const REGISTRY = [
  {id:'fPu', key:'fPu', div:100, unit:'%', name:'f_Pu241, Pu-linked value share', origin:'unknown', q:'Unassessed', why:'Set to zero to avoid inventing a value share; not a measured isotopic fraction.'},
  {id:'halfLife', key:'halfLife', div:1, unit:' y', name:'T1/2 (Pu-241)', origin:'sourced', q:'High', why:'Established nuclear-data quantity; the database and version still need to be cited.'},
  {id:'k', key:'k', div:1, unit:'', name:'k, Am-241 penalty', origin:'illustrative', q:'Unassessed', why:'Illustrative coefficient, not calibrated. Locked to 0 for ADS, which means no PUREX poisoning, not a bonus.'},
- {id:'p0', key:'p0', div:100, unit:'%', name:'p0, initial technology success', origin:'scenario', q:'Unassessed', why:'Scenario input, not an estimated probability. It is the lower asymptote of p(T), so p(0) is slightly higher (0.158 at defaults).'},
+ {id:'p0', key:'p0', div:100, unit:'%', name:'p0, initial technology success', origin:'scenario', q:'Unassessed', why:'Scenario input, not an estimated probability. It is p(0), the success probability today: the p(T) curve starts exactly at p0 (changed in v0.3; earlier versions treated p0 as a lower asymptote, so p(0) was 0.158 at defaults).'},
  {id:'pmax', key:'pmax', div:100, unit:'%', name:'p_max, maximum technology success', origin:'scenario', q:'Unassessed', why:'Scenario ceiling, not a validated upper bound.'},
  {id:'t0tech', key:'t0tech', div:1, unit:' y', name:'t0, technology maturity midpoint', origin:'scenario', q:'Unassessed', why:'Inflection time of p(T), not a forecast date.'}
 ];

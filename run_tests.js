@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // OV(T) calculator — regression + invariant tests.
 // Usage: node run_tests.js <path-to-calculator.html> [--generate]
-// --generate : (re)write golden_v5.json from the CURRENT code. Golden = frozen behaviour,
+// --generate : (re)write golden_v6.json from the CURRENT code. Golden = frozen behaviour,
 // NOT proof of correctness. Correctness evidence comes from the invariants,
 // the independent cross-check, and the mutation check below.
 const fs = require("fs"),
@@ -15,7 +15,7 @@ if (!htmlPath) {
   process.exit(2);
 }
 const GENERATE = args.includes("--generate");
-const goldenPath = path.join(__dirname, "golden_v5.json");
+const goldenPath = path.join(__dirname, "golden_v6.json");
 const TOL = 1e-9;
 
 // ---------- load the REAL core from the HTML (no re-implementation) ----------
@@ -163,12 +163,14 @@ const SCEN = {
     o: { p0: 0.1, pmax: 0.95, t0tech: 3, delta: 0.2 },
   },
 };
-// Values obtained EARLIER from an independent Python re-implementation (4 decimals).
+// Values from an independent Python re-implementation (4 decimals), written from the formulas, not from this JS.
+// Registry v0.3 (p(0) = p0): base, narrow_wait and act_now changed; political_15 and p_inverted did not.
+// The same Python reproduced the earlier v0.2 values (-0.3521, 0.7337, 0.7476) before the formula change.
 const INDEPENDENT = {
-  base: { T: 0, OV: -0.3521, v: "DISPOSE" },
+  base: { T: 0, OV: -0.3345, v: "DISPOSE" },
   political_15: { T: 94, OV: -0.3333, v: "DISPOSE" },
-  narrow_wait: { T: 9, OV: 0.7337, v: "PRESERVE" },
-  act_now: { T: 0, OV: 0.7476, v: "ACT_NOW" },
+  narrow_wait: { T: 9, OV: 0.7325, v: "PRESERVE" },
+  act_now: { T: 0, OV: 0.7102, v: "ACT_NOW" },
   p_inverted: { T: 94, OV: -0.5888, v: "DISPOSE" },
 };
 const golden = { meta: {}, scenarios: {}, grids: {}, thresholds: {} };
@@ -326,10 +328,10 @@ const stats = (g) => {
     "min dOV=" + s1.minDeltaOV.toExponential(2)
   );
   check(
-    s1.nonzeroT === 49 &&
-      s1.nonzeroVerdict === 91 &&
+    s1.nonzeroT === 40 &&
+      s1.nonzeroVerdict === 33 &&
       Math.abs(s1.maxDeltaOV - 0.0436) < 5e-5,
-    "fPu=50%, delta=18%: matches the earlier independent audit (49 / 91 / 0.0436)",
+    "fPu=50%, delta=18%: matches the independent Python audit with p(0)=p0 (40 / 33 / 0.0436; was 49 / 91 / 0.0436 before v0.3)",
     JSON.stringify({ ...s1, maxDeltaOV: +s1.maxDeltaOV.toFixed(4) })
   );
   golden.grids.fPu50_delta18 = {
@@ -636,7 +638,7 @@ golden.meta = {
   node: process.version,
   fuzzSeed: 20261029,
   fuzzDraws: NF,
-  note: "Golden = frozen CURRENT behaviour (regression protection). It is not evidence of correctness.",
+  note: "Golden = frozen CURRENT behaviour (regression protection). It is not evidence of correctness. v6 = p(T) rescaled so that p(0) = p0 (registry v0.3); it supersedes golden_v5 (p0 as lower asymptote).",
 };
 console.log("\n[5c] Layout and deferred rendering (static checks on the html)");
 {
@@ -653,6 +655,45 @@ console.log("\n[5c] Layout and deferred rendering (static checks on the html)");
   check(/\brenderNow\(\);\s*<\/script>/.test(src), "first paint is a full synchronous render");
   check(/id="exampleBtn"/.test(src) && /els\.fPu\.value = 50; els\.delta\.value = 18;/.test(src) && /not a recommendation/.test(src),
     "example button sets only f_Pu = 50 and delta = 18 and is labelled as an example, not a recommendation");
+}
+
+console.log("\n[5d] p(T) definition (registry v0.3: p(0) = p0)");
+{
+  let bad0 = 0, badRange = 0, badMono = 0, badEnd = 0, n = 0;
+  for (let i = 0; i < 20000; i++) {
+    const P = toParams(drawUI());
+    const a = Math.min(P.p0, P.pmax) - 1e-12, b = Math.max(P.p0, P.pmax) + 1e-12;
+    let prev = null; n++;
+    for (let t = 0; t <= core.TMAX; t++) {
+      const p = core.pTech(t, P.p0, P.pmax, P.t0tech);
+      if (t === 0 && p !== P.p0) bad0++;
+      if (p < a || p > b) badRange++;
+      if (prev !== null) { const up = P.pmax >= P.p0; if (up ? p < prev - 1e-12 : p > prev + 1e-12) badMono++; }
+      prev = p;
+    }
+    // far in the future the curve reaches pmax (very large t is outside the model horizon, used here only for the limit)
+    if (Math.abs(core.pTech(1e4, P.p0, P.pmax, P.t0tech) - P.pmax) > 1e-9) badEnd++;
+  }
+  check(bad0 === 0, "p(0) equals p0 exactly", bad0 + " bad in " + n + " draws");
+  check(badRange === 0, "p(T) stays between p0 and pmax for T = 0..94", badRange + " bad");
+  check(badMono === 0, "p(T) is monotone (rising if pmax >= p0, falling otherwise)", badMono + " bad");
+  check(badEnd === 0, "p(T) tends to pmax for very large T", badEnd + " bad");
+  // independent direct expression of the same curve (inflection and steepness unchanged: only an affine rescale)
+  let md = 0;
+  for (const t0 of [1, 6, 20, 40, 80])
+    for (let t = 0; t <= core.TMAX; t += 5) {
+      const st = 4.4 / Math.max(t0, 0.5);
+      const L = (x) => 1 / (1 + Math.exp(-st * (x - t0)));
+      const expect = 0.15 + 0.65 * (L(t) - L(0)) / (1 - L(0));
+      md = Math.max(md, Math.abs(core.pTech(t, 0.15, 0.8, t0) - expect));
+    }
+  check(md < 1e-12, "code matches the documented formula p0 + (pmax-p0)(L(T)-L(0))/(1-L(0)) (same expression; the independent evidence is the Python cross-check above)", "max diff " + md.toExponential(1));
+  // mutation check: the pre-v0.3 curve must violate p(0) = p0 (about 1.2% of the range)
+  const oldP = (T, p0, pmax, t0) => p0 + (pmax - p0) / (1 + Math.exp(-(4.4 / Math.max(t0, 0.5)) * (T - t0)));
+  check(Math.abs(oldP(0, 0.15, 0.8, 40) - 0.15) > 7e-3 && Math.abs(oldP(0, 0.15, 0.8, 40) - 0.158) < 1e-3,
+    "mutation: the pre-v0.3 curve fails p(0) = p0 (gives 0.158 at defaults)");
+  check(/p₀ is the probability today \(T = 0\)/.test(src) && !/starting probability/.test(src) && !/lower asymptote/.test(src.replace(/\/\/ \(Before[^\n]*\n/, "").replace(/earlier versions treated p0 as a lower asymptote[^']*/, "")),
+    "UI text says p0 is the probability today, and no longer calls it a starting value or lower asymptote");
 }
 
 console.log("\n[6] Golden file");
