@@ -638,6 +638,23 @@ golden.meta = {
   fuzzDraws: NF,
   note: "Golden = frozen CURRENT behaviour (regression protection). It is not evidence of correctness.",
 };
+console.log("\n[5c] Layout and deferred rendering (static checks on the html)");
+{
+  check(/\.grid\{[^}]*minmax\(0,1fr\)/.test(src) && /\.grid > \*\{ min-width:0; \}/.test(src) && /max-width:900px\)\{ \.grid\{ grid-template-columns:minmax\(0,1fr\)/.test(src),
+    "page grid columns can shrink (minmax(0,1fr) + min-width:0): no horizontal overflow on a 360 px phone");
+  check(/diagnostic-grid\{[^}]*repeat\(3,minmax\(0,1fr\)\)/.test(src) && /max-width:1180px\)\{ \.diagnostic-grid\{grid-template-columns:minmax\(0,1fr\)/.test(src),
+    "map grid: 3 columns only above 1180 px, one shrinkable column below");
+  check(/function renderFast\(\)/.test(src) && /function renderHeavy\(\)/.test(src) && /setTimeout\(renderHeavy, 150\)/.test(src) && /function render\(\)\{ renderFast\(\); scheduleHeavy\(\); \}/.test(src),
+    "slider events run the fast path now and the maps/registry ~150 ms later (debounced)");
+  const fast = src.slice(src.indexOf("function renderFast()"), src.indexOf("function renderHeavy()"));
+  check(!/renderDiagnostics\(|renderRegistry\(/.test(fast), "the fast path does not call the heavy renderers");
+  check(/id="registryDetails"/.test(src) && /rd && rd\.open\) renderRegistry\(lastP\)/.test(src) && /addEventListener\('toggle'/.test(src),
+    "registry is computed only while its panel is open, and when it is opened");
+  check(/\brenderNow\(\);\s*<\/script>/.test(src), "first paint is a full synchronous render");
+  check(/id="exampleBtn"/.test(src) && /els\.fPu\.value = 50; els\.delta\.value = 18;/.test(src) && /not a recommendation/.test(src),
+    "example button sets only f_Pu = 50 and delta = 18 and is labelled as an example, not a recommendation");
+}
+
 console.log("\n[6] Golden file");
 if (GENERATE) {
   fs.writeFileSync(goldenPath, JSON.stringify(golden));
