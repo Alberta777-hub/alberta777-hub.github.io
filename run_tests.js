@@ -31,7 +31,7 @@ if (/document\.|window\.|els\./.test(coreSrc))
   throw new Error("DOM reference leaked into core block");
 const core = new Function(
   coreSrc +
-    "\nreturn {decide,scenarioResult,Vfuel_physics,Cavoided,Creprocessing,pTech,successBranchPayoff,TMAX,VERDICTS,verdictPairCode,describeVerdictPair,pInversionWarning,pathwaysIdentical,REGISTRY,ORIGINS,QUALITIES,findFlip,SPOKEN_UNIT};"
+    "\nreturn {decide,scenarioResult,Vfuel_physics,Cavoided,Creprocessing,pTech,successBranchPayoff,TMAX,VERDICTS,verdictPairCode,describeVerdictPair,pInversionWarning,pathwaysIdentical,adsBreakEven,REGISTRY,ORIGINS,QUALITIES,findFlip,SPOKEN_UNIT};"
 )();
 const sha = (s) =>
   crypto.createHash("sha256").update(s).digest("hex").slice(0, 16);
@@ -694,6 +694,53 @@ console.log("\n[5d] p(T) definition (registry v0.3: p(0) = p0)");
     "mutation: the pre-v0.3 curve fails p(0) = p0 (gives 0.158 at defaults)");
   check(/p₀ is the probability today \(T = 0\)/.test(src) && !/starting probability/.test(src) && !/lower asymptote/.test(src.replace(/\/\/ \(Before[^\n]*\n/, "").replace(/earlier versions treated p0 as a lower asymptote[^']*/, "")),
     "UI text says p0 is the probability today, and no longer calls it a starting value or lower asymptote");
+}
+
+console.log("\n[5e] MOX vs ADS what-if: labels and break-even premium (adds no input, changes no number)");
+{
+  // independent Python values (ind_model.py: ads_break_even), advantage in bn and premium in % of C_reprocess
+  const IND_BE = [
+    [{ fPu: 0.5, delta: 0.18 }, 0.007409, 2.7565],
+    [{ fPu: 0.2, delta: 0.10 }, 0.003040, 0.8476],
+    [{ t0tech: 6, delta: 0.18, fPu: 0.2 }, 0.012984, 3.1400],
+    [{ fPu: 0.5, delta: 0.18, t0tech: 6 }, 0.032459, 7.8500],
+    [{ fPu: 0.5 }, 0, 0],
+  ];
+  let worst = 0;
+  for (const [o, adv, prem] of IND_BE) {
+    const r = core.adsBreakEven({ ...P0, ...o }, P0.k);
+    worst = Math.max(worst, Math.abs(r.advantage - adv), Math.abs(r.premium * 100 - prem) / 100);
+  }
+  check(worst < 2e-5, "break-even premium matches the independent Python on 5 settings", "max diff " + worst.toExponential(1));
+  check(core.adsBreakEven(P0, P0.k) === null && core.adsBreakEven({ ...P0, fPu: 0.5 }, 0) === null,
+    "break-even is null when MOX and ADS are identical by construction (f_Pu = 0 or k = 0)");
+  let nb = 0, badRoot = 0, badSide = 0, badNeg = 0, cap = 0;
+  for (let i = 0; i < 3000; i++) {
+    const P = toParams(drawUI());
+    P.fPu = Math.max(P.fPu, 0.05); const mk = Math.max(P.k, 0.05); P.k = mk;
+    const be = core.adsBreakEven(P, mk);
+    if (be === null) continue;
+    nb++;
+    if (be.advantage < 0 || be.premium < 0) badNeg++;
+    if (be.advantage <= 0 || be.capped) { if (be.capped) cap++; continue; }
+    const mox = core.decide({ ...P, k: mk }).bestOV;
+    const at = (c) => core.decide({ ...P, k: 0, Crep0: P.Crep0 * c }).bestOV - mox;
+    if (Math.abs(at(1 + be.premium)) > 1e-7) badRoot++;
+    if (at(1 + be.premium * 0.9) <= 0 || (be.premium * 1.1 < 2 && at(1 + be.premium * 1.1) >= 0)) badSide++;
+  }
+  check(badNeg === 0, "advantage and premium are never negative", badNeg + " bad in " + nb + " draws");
+  check(badRoot === 0, "at the premium, ADS value equals MOX value (a true break-even)", badRoot + " bad");
+  check(badSide === 0, "below the premium ADS still wins; above it ADS loses", badSide + " bad (" + cap + " capped at +200% skipped)");
+  check(/id="adsDefinition"/.test(src) && /same model with k = 0 \(no Am-241 penalty\)/.test(src) && /not a comparison of two technologies/.test(src),
+    "page defines ADS as k = 0 at the same cost and timing, and says the maps are not a technology comparison");
+  check(!/economic magnitude of the pathway effect/.test(src) && !/value uplift/.test(src), "old wording that read like a technology comparison is gone");
+  check(/value of removing the Am-241 penalty in isolation/.test(src) && /MOX disposes, ADS \(k = 0\) preserves/.test(src),
+    "map cards and legend say that ADS means k = 0");
+  const fast2 = src.slice(src.indexOf("function renderFast()"), src.indexOf("function renderHeavy()"));
+  const diag = src.slice(src.indexOf("function renderDiagnostics("), src.indexOf("let chart, lastP"));
+  check(/id="adsBreakEven"/.test(src) && /adsBreakEven\(base, moxK\)/.test(diag) && !/adsBreakEven\(/.test(fast2),
+    "break-even readout is computed in the deferred part, not on every slider event");
+  check(/not an ADS cost estimate/.test(src), "readout is labelled as a what-if, not an ADS cost estimate");
 }
 
 console.log("\n[6] Golden file");

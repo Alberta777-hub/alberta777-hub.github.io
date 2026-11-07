@@ -233,7 +233,7 @@
       <div class="panel">
         <h2>Technology</h2>
         <div class="field">
-          <label>Reprocessing pathway <button class="info-btn" type="button" aria-label="What is the pathway?" data-info-title="Reprocessing pathway" data-info="This selects how the model interprets the future use of the recovered material. MOX/PUREX represents today’s conventional route; ADS is a conceptual advanced pathway and does not imply demonstrated industrial economics.">i</button></label>
+          <label>Reprocessing pathway <button class="info-btn" type="button" aria-label="What is the pathway?" data-info-title="Reprocessing pathway" data-info="This selects how the model interprets the future use of the recovered material. MOX/PUREX represents today’s conventional route; ADS is a conceptual advanced pathway and does not imply demonstrated industrial economics. In this model ADS differs from MOX/PUREX only by k = 0 (no Am-241 penalty): its cost and maturity timing are the same as MOX.">i</button></label>
           <div class="presets" style="margin-top:6px;">
             <button class="preset-btn active" data-path="mox">MOX/PUREX (today)</button>
             <button class="preset-btn" data-path="ads">ADS (conceptual)</button>
@@ -292,27 +292,29 @@
 
       <div class="panel" style="margin-top:18px;">
         <h2>Red-Team Diagnostic — Two Clocks</h2>
-        <p class="sub" style="margin-bottom:12px;">Sensitivity map: Pu-241 isotope clock (<span class="mono">T1/2</span>) × technology-maturation clock (<span class="mono">t₀</span>). Each cell recomputes both pathways with all other current assumptions held fixed.</p>
+        <p class="sub" style="margin-bottom:12px;">Sensitivity map: Pu-241 isotope clock (<span class="mono">T1/2</span>) × technology-maturation clock (<span class="mono">t₀</span>). Each cell recomputes both cases (MOX and ADS) with all other current assumptions held fixed.</p>
+        <div class="hint" id="adsDefinition" style="margin:0 0 12px;">What “ADS” means here: the same model with k = 0 (no Am-241 penalty), at the same cost and the same maturity timing as MOX. So the maps show the value of removing the Am-241 penalty in isolation. They are not a comparison of two technologies: ADS has no costs or timing of its own in this model.</div>
         <div style="margin-bottom:12px;">
           <button type="button" class="preset-btn" id="exampleBtn">Try an example: f_Pu = 50%, δ = 18%</button>
           <div class="hint" id="exampleHint">An example to make the maps non-neutral, not a recommendation. It changes only these two sliders.</div>
         </div>
+        <div class="diag-note" id="adsBreakEven" style="display:none;margin-top:0;margin-bottom:12px;"></div>
         <div class="diagnostic-grid">
           <div class="heat-card">
             <h3>ΔT* — TIMING</h3>
-            <p>ADS T* − MOX T*, years. Zero means the pathway changes value but not the optimal year.</p>
+            <p>ADS T* − MOX T*, years (ADS = k set to 0). Zero means removing the penalty changes value but not the optimal year.</p>
             <div class="heat-wrap"><canvas id="heatTiming"></canvas></div>
             <div class="heat-legend" id="legendTiming"></div>
           </div>
           <div class="heat-card">
             <h3>ΔOV* — VALUE</h3>
-            <p>ADS OV(T*) − MOX OV(T*), €bn. This is the economic magnitude of the pathway effect.</p>
+            <p>ADS OV(T*) − MOX OV(T*), €bn (ADS = k set to 0). This is the value of removing the Am-241 penalty in isolation, not a technology comparison.</p>
             <div class="heat-wrap"><canvas id="heatValue"></canvas></div>
             <div class="heat-legend" id="legendValue"></div>
           </div>
           <div class="heat-card">
             <h3>ΔVERDICT — DECISION</h3>
-            <p>Each cell compares the full verdict of MOX and ADS (DISPOSE, ACT NOW or PRESERVE). Colours group the pairs; hover shows the exact pair.</p>
+            <p>Each cell compares the full verdict of MOX and ADS, where ADS = k set to 0 (DISPOSE, ACT NOW or PRESERVE). Colours group the pairs; hover shows the exact pair.</p>
             <div class="heat-wrap"><canvas id="heatVerdict"></canvas></div>
             <div class="heat-legend" id="legendVerdict"></div>
             <div class="hint" id="pathNote" style="display:none;margin-top:8px;"></div>
@@ -534,6 +536,21 @@ function decide(p){
   return {curve, bestT, bestOV, preserve, verdict, ov0: curve[0]};
 }
 
+// MOX-vs-ADS what-if (adds no input). In this model "ADS" is the same model with k = 0: same cost, same maturity timing.
+// adsBreakEven answers: how much more may ADS cost to reprocess before its whole advantage over MOX disappears?
+// Returns null when the two cases are identical by construction, else {advantage (bn), premium (fraction), capped}.
+function adsBreakEven(p, moxK){
+  if(pathwaysIdentical(p.fPu, moxK)) return null;
+  const mox = decide({...p, k:moxK}).bestOV;
+  const adv = decide({...p, k:0}).bestOV - mox;
+  if(adv <= 1e-9) return {advantage:0, premium:0, capped:false};
+  const f = c => decide({...p, k:0, Crep0:p.Crep0*c}).bestOV - mox;
+  const CAP = 3;                                  // +200 %
+  if(f(CAP) > 0) return {advantage:adv, premium:CAP-1, capped:true};
+  let lo = 1, hi = CAP;
+  for(let i=0;i<40;i++){ const m=(lo+hi)/2; if(f(m)>0) lo=m; else hi=m; }
+  return {advantage:adv, premium:(lo+hi)/2-1, capped:false};
+}
 
 // ---- RED-TEAM DIAGNOSTIC: T1/2 × t0 ----
 const diagCanvases = {
@@ -639,9 +656,9 @@ function renderLegend(el, canvas, label){
   const {min, max, opts, colorFn} = canvas.$diag;
   if(opts.mode==='verdict'){
     el.innerHTML = `<div class="chips">
-      <span class="chip"><span class="sw" style="background:rgba(79,174,138,.78)"></span>MOX disposes, ADS preserves</span>
-      <span class="chip"><span class="sw" style="background:rgba(92,108,146,.18); border:1px solid #334467;"></span>same verdict in both pathways</span>
-      <span class="chip"><span class="sw" style="background:rgba(209,102,90,.78)"></span>MOX preserves, ADS disposes</span>
+      <span class="chip"><span class="sw" style="background:rgba(79,174,138,.78)"></span>MOX disposes, ADS (k = 0) preserves</span>
+      <span class="chip"><span class="sw" style="background:rgba(92,108,146,.18); border:1px solid #334467;"></span>same verdict with and without the penalty</span>
+      <span class="chip"><span class="sw" style="background:rgba(209,102,90,.78)"></span>MOX preserves, ADS (k = 0) disposes</span>
       <span class="chip"><span class="sw" style="background:rgba(214,160,60,.78)"></span>other difference (involves ACT NOW; see hover and table)</span>
     </div>`;
     return;
@@ -677,9 +694,9 @@ function updateA11y(p, res){
       const hd = pn.querySelector('h2');
       if(hd){ hd.id = hd.id || ('panel-h-'+i); pn.setAttribute('role','group'); pn.setAttribute('aria-labelledby', hd.id); }
     });
-    const alt = {heatTiming:'Map of the change in optimal delay between ADS and MOX over half-life and technology timing.',
-                 heatValue:'Map of the value difference between ADS and MOX over half-life and technology timing.',
-                 heatVerdict:'Map of verdict pairs (MOX versus ADS). Counts per pair are in the table below the map.'};
+    const alt = {heatTiming:'Map of the change in optimal delay when the Am-241 penalty is removed (ADS = k set to 0 versus MOX), over half-life and technology timing.',
+                 heatValue:'Map of the value of removing the Am-241 penalty (ADS = k set to 0 minus MOX), over half-life and technology timing.',
+                 heatVerdict:'Map of verdict pairs (MOX versus ADS, where ADS is k set to 0). Counts per pair are in the table below the map.'};
     for(const id of Object.keys(alt)){ const c = document.getElementById(id); if(c){ c.setAttribute('role','img'); c.setAttribute('aria-label', alt[id]); } }
     const oc = document.getElementById('ovChart'); if(oc) oc.setAttribute('role','img');
   }
@@ -729,7 +746,7 @@ function renderDiagnostics(base){
     const th = 'padding:2px 8px;font-weight:400;';
     const hd = VERDICTS.map(v=>`<th style="${th}">${v}</th>`).join('');
     const body = VERDICTS.map((mv,mi)=>`<tr><th style="${th}text-align:left">${mv}</th>${VERDICTS.map((_,ai)=>`<td style="padding:2px 8px;text-align:right">${cnt[3*mi+ai]}</td>`).join('')}</tr>`).join('');
-    document.getElementById('legendVerdict').insertAdjacentHTML('beforeend', `<table style="margin-top:8px;font-size:11px;border-collapse:collapse"><caption style="text-align:left;color:var(--ink-dim)">Cells by verdict pair (rows: MOX, columns: ADS)</caption><tr><th></th>${hd}</tr>${body}</table>`);
+    document.getElementById('legendVerdict').insertAdjacentHTML('beforeend', `<table style="margin-top:8px;font-size:11px;border-collapse:collapse"><caption style="text-align:left;color:var(--ink-dim)">Cells by verdict pair (rows: MOX, columns: ADS with k = 0)</caption><tr><th></th>${hd}</tr>${body}</table>`);
   }
   let timingCells=0, verdictCells=0, maxDV=0;
   for(let j=0;j<30;j++) for(let i=0;i<30;i++){ if(timing[j][i]!==0) timingCells++; if(!describeVerdictPair(verdict[j][i]).same) verdictCells++; maxDV=Math.max(maxDV,value[j][i]); }
@@ -737,8 +754,20 @@ function renderDiagnostics(base){
     if(pn){ pn.style.display = why ? 'block' : 'none';
       pn.textContent = why==='fPu' ? 'f_Pu = 0: MOX and ADS are identical by construction, so every cell is neutral. Raise f_Pu to see where the pathways differ.'
         : why==='k' ? 'k = 0: the MOX penalty is zero, so MOX and ADS are identical and every cell is neutral. Raise k to see where the pathways differ.' : ''; } }
+  { const be = adsBreakEven(base, moxK), bel = document.getElementById('adsBreakEven');
+    if(bel){
+      if(be===null){ bel.style.display = 'none'; bel.textContent = ''; }
+      else {
+        bel.style.display = 'block';
+        if(be.advantage <= 0) bel.textContent = 'At the current settings the Am-241 penalty changes nothing: with and without it both cases choose T* = 0, before any Pu-241 has decayed. There is no ADS advantage to protect.';
+        else bel.innerHTML = 'At the current settings, removing the Am-241 penalty (k = 0) adds <b>€'+be.advantage.toFixed(3)+'bn</b> to OV(T*). That whole advantage disappears if the ADS pathway costs '
+          + (be.capped ? 'more than <b>200%</b>' : '<b>'+(be.premium*100).toFixed(1)+'%</b>')
+          + ' more to reprocess than MOX' + (be.capped ? '' : ' (C_reprocess above €'+(base.Crep0*(1+be.premium)).toFixed(2)+'bn instead of €'+base.Crep0.toFixed(2)+'bn)')
+          + '. This is a what-if on one input, not an ADS cost estimate.';
+      }
+    } }
   const note=document.getElementById('diagnosticNote');
-  note.innerHTML='Physical baseline: <b>T1/2 = 14.3 y</b>. In the 1–30 y × 1–30 y map, the current assumptions produce a non-zero ΔT* in <b>'+timingCells+'</b> of 900 cells and a verdict change in <b>'+verdictCells+'</b> cells. Maximum ADS−MOX value uplift on the grid: <b>€'+maxDV.toFixed(3)+'bn</b>. These are diagnostic results, not forecasts.';
+  note.innerHTML='Physical baseline: <b>T1/2 = 14.3 y</b>. In the 1–30 y × 1–30 y map, the current assumptions produce a non-zero ΔT* in <b>'+timingCells+'</b> of 900 cells and a verdict change in <b>'+verdictCells+'</b> cells. Maximum value of removing the Am-241 penalty on the grid (ADS − MOX): <b>€'+maxDV.toFixed(3)+'bn</b>. These are diagnostic results, not forecasts.';
 }
 
 let chart, lastP = null, heavyTimer = null;
@@ -873,7 +902,7 @@ document.querySelectorAll('.preset-btn[data-path]').forEach(btn=>{
       els.k.disabled = true;
       els.k.style.opacity = '0.35';
       kHint.textContent = 'Locked to 0 for ADS: means "the PUREX-specific poisoning problem does not apply" — not "Am-241 adds value." No source quantifies a positive effect.';
-      pathwayHint.textContent = 'ADS pathway selected: k is fixed at 0 (neutral, not a bonus).';
+      pathwayHint.textContent = 'ADS pathway selected: k is fixed at 0 (neutral, not a bonus). Cost and maturity timing stay the same as MOX.';
     } else {
       els.k.disabled = false;
       els.k.style.opacity = '1';
